@@ -171,6 +171,26 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: transparentMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: d4afa33e7f7f1094e9c78d538fdcd0a1, type: 2}
+    - target: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: brickPrefabs.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: brickMaterials.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: 'brickPrefabs.Array.data[0]'
+      value: 
+      objectReference: {fileID: 3593176303172153315, guid: 262550462243c014d8faa7a7614fe937, type: 3}
+    - target: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: 'brickMaterials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2261683542439678063, guid: 02d797414efdfed4eaa8d58a6dbb7f99, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -297,6 +317,55 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 40884009}
   m_CullTransparentMesh: 1
+--- !u!1 &148423094
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 148423096}
+  - component: {fileID: 148423095}
+  m_Layer: 0
+  m_Name: LegoVrSytem
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &148423095
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 148423094}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f745d9529fbce634a9b27ec44607aae0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegoVRManager
+  placeBrickSystem: {fileID: 687428237}
+  brickPrefabs: []
+  brickMaterials: []
+  transparentMaterial: {fileID: 0}
+  autoSetup: 1
+--- !u!4 &148423096
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 148423094}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.10484, y: 0.06, z: 0.11968}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &206006288
 GameObject:
   m_ObjectHideFlags: 0
@@ -633,6 +702,17 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!114 &687428237 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 5874112177237886465, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+  m_PrefabInstance: {fileID: 14907498}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f770052cb537d84dbc4d8fc6c9c3ca5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlaceBrickVR
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -807,6 +887,37 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1.3614397, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1262518013
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1262518014}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1262518014
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1262518013}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 3.748, y: 0.92067, z: 1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1092,6 +1203,7 @@ GameObject:
   - component: {fileID: 1676731993}
   - component: {fileID: 1676731992}
   - component: {fileID: 1676731991}
+  - component: {fileID: 1676731996}
   m_Layer: 0
   m_Name: Teleportation Area
   m_TagString: Untagged
@@ -1273,6 +1385,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1676731996
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1676731990}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5c9b91faaad13445adcd69f777872b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GridOnTeleportationArea
+  gridColor: {r: 0, g: 1, b: 1, a: 1}
+  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  gridAlpha: 0.3
+  showGrid: 1
+  showGridLines: 1
+  gridLineColor: {r: 1, g: 1, b: 1, a: 1}
+  gridLineWidth: 0.01
+  placeBrickSystem: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1285,3 +1417,5 @@ SceneRoots:
   - {fileID: 1198242256}
   - {fileID: 1676731995}
   - {fileID: 1343878725}
+  - {fileID: 148423096}
+  - {fileID: 1262518014}
