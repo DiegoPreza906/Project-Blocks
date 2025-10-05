@@ -13,11 +13,15 @@ public class PlaceBrickVR : MonoBehaviour
     [SerializeField] private GameObject[] brickPrefabs;
     [SerializeField] private Material[] brickMaterials;
     [SerializeField] private Material transparentMaterial;
+    [SerializeField] private Color currentBrickColor = Color.white;
     
     [Header("Configuración VR")]
     [SerializeField] private UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor rayInteractor; // Ray Interactor del XR Interaction Toolkit
     [SerializeField] private LayerMask legoLayerMask = -1;
     [SerializeField] private float previewSmoothing = 0.1f; // Suavizado del preview
+    
+    [Header("Sistema de Validación")]
+    [SerializeField] private BrickValidationSystem validationSystem;
     
     // Removido RaycastSystem - usando solo XRRayInteractor
     
@@ -33,11 +37,6 @@ public class PlaceBrickVR : MonoBehaviour
     private BrickVR currentBrick;
     private bool isPositionValid = false;
     private bool isInitialized = false;
-    private bool hasShownVRWarning = false;
-    
-    // Suavizado del preview
-    private Vector3 targetPreviewPosition;
-    private bool hasTargetPosition = false;
     
     // Propiedades
     public bool IsBuilding { get; private set; } = true;
@@ -57,40 +56,6 @@ public class PlaceBrickVR : MonoBehaviour
         Debug.Log("PlaceBrickVR: Awake completado - InputActions se crearán en Start()");
     }
     
-    private void SetupInputActionsDirectly()
-    {
-        Debug.Log("🔧 Configurando Input Actions SOLO para VR...");
-        
-        // Crear InputActions si no existe
-        if (inputActions == null)
-        {
-            inputActions = new InputSystem_Actions();
-            Debug.Log("✅ InputSystem_Actions creado");
-        }
-        
-        // Configurar binding mask para VR ANTES de habilitar
-        inputActions.asset.bindingMask = new UnityEngine.InputSystem.InputBinding { groups = "XR" };
-        Debug.Log("✅ Binding mask configurado para grupo XR (SOLO VR)");
-        
-        // Deshabilitar dispositivos no VR
-        DisableNonVRDevices();
-        
-        // Habilitar las acciones
-        inputActions.Player.Attack.Enable();
-        inputActions.Player.Jump.Enable();
-        inputActions.Player.Crouch.Enable();
-        inputActions.Player.Next.Enable();
-        inputActions.Player.Interact.Enable();
-        inputActions.Player.Previous.Enable();
-        inputActions.Player.Sprint.Enable();
-        
-        Debug.Log("✅ Input Actions habilitados SOLO para VR");
-        Debug.Log("- Colocar: Attack (Trigger DERECHO)");
-        Debug.Log("- Confirmar: Jump (Trigger IZQUIERDO)");
-        Debug.Log("- Rotar: Crouch (Botón A)");
-        Debug.Log("- Eliminar: Next (Botón X)");
-        Debug.Log("- Cambiar tipo: Interact (Botón B)");
-    }
     
     private void DisableNonVRDevices()
     {
@@ -117,24 +82,13 @@ public class PlaceBrickVR : MonoBehaviour
         Debug.Log($"✅ {disabledCount} dispositivos no VR deshabilitados");
     }
     
-    private void SetupInputActions()
-    {
-        // Configurar las referencias de Input Actions automáticamente
-        if (inputActions != null)
-        {
-            Debug.Log("PlaceBrickVR: Input Actions configuradas automáticamente");
-            Debug.Log("- Colocar: Attack (Trigger)");
-            Debug.Log("- Rotar: Jump (Botón A)");
-            Debug.Log("- Eliminar: Crouch (Botón X)");
-            Debug.Log("- Cambiar tipo: Next (Joystick)");
-        }
-    }
     
     private void Start()
     {
         InitializeSystem();
         CreatePreviewBrick();
         SetupRaycastSystem();
+        SetupValidationSystem();
         
         // Verificar dispositivos VR (sistema nativo)
         CheckVRDevices();
@@ -161,6 +115,29 @@ public class PlaceBrickVR : MonoBehaviour
         
         isInitialized = true;
         Debug.Log("PlaceBrickVR: Sistema inicializado correctamente");
+    }
+    
+    private void SetupValidationSystem()
+    {
+        // Buscar o crear el sistema de validación
+        if (validationSystem == null)
+        {
+            validationSystem = FindFirstObjectByType<BrickValidationSystem>();
+            
+            if (validationSystem == null)
+            {
+                GameObject validationObj = new GameObject("BrickValidationSystem");
+                validationSystem = validationObj.AddComponent<BrickValidationSystem>();
+                Debug.Log("✅ BrickValidationSystem creado automáticamente");
+            }
+        }
+        
+        // Configurar materiales de validación
+        if (validationSystem != null)
+        {
+            validationSystem.SetupMaterials(transparentMaterial, null, null);
+            Debug.Log("✅ Sistema de validación configurado");
+        }
     }
     
     private void SetupRaycastSystem()
@@ -296,14 +273,14 @@ public class PlaceBrickVR : MonoBehaviour
             hasHit = rayInteractor.TryGetCurrent3DRaycastHit(out hit);
             if (hasHit)
             {
-                Debug.Log($"🎯 XRRayInteractor HIT: {hit.point}, Objeto: {hit.collider.name}, Layer: {hit.collider.gameObject.layer}");
+                // Debug log removido para evitar spam
             }
             else
             {
                 // Debug cada 2 segundos para no spamear
                 if (Time.time % 2f < 0.1f)
                 {
-                    Debug.Log($"🎯 XRRayInteractor MISS - No detecta hits en Layer 7+8");
+                    // Debug log removido para evitar spam
                 }
             }
         }
@@ -317,7 +294,7 @@ public class PlaceBrickVR : MonoBehaviour
             // Debug visual del raycast manual
             Debug.DrawRay(rayOrigin, rayDirection * 10f, Color.blue, 0.1f);
             
-            hasHit = Physics.Raycast(ray, out hit, 10f, (1 << 7) | (1 << 8)); // Layer 7 (Lego) + Layer 8 (Grid)
+            hasHit = Physics.Raycast(ray, out hit, 10f, (1 << 7) | (1 << 8)); // Layer 7 (Grid) + Layer 8 (Lego)
             if (hasHit)
             {
                 Debug.Log($"🎯 Raycast Manual HIT: {hit.point}, Objeto: {hit.collider.name}, Layer: {hit.collider.gameObject.layer}");
@@ -326,8 +303,28 @@ public class PlaceBrickVR : MonoBehaviour
         
         if (hasHit)
         {
-            // Si hay hit, usar esa posición con snap
-            Vector3 snappedPosition = GridSystem.SnapToGrid(hit.point);
+            // Determinar el tipo de snap según el objeto hit
+            Vector3 snappedPosition;
+            
+            // Verificar si es realmente un bloque LEGO (Layer 8 = Lego)
+            bool isLegoBlock = hit.collider.gameObject.layer == 8 && 
+                              (hit.collider.gameObject.name.Contains("Brick") || 
+                               hit.collider.gameObject.name.Contains("Lego") ||
+                               hit.collider.gameObject.name.Contains("PlacedBrick"));
+            
+            if (isLegoBlock)
+            {
+                // SNAP A BLOQUE: Colocar encima del collider del bloque existente
+                snappedPosition = SnapToBlock(hit);
+                // Debug log removido para evitar spam
+        }
+        else
+        {
+                // SNAP A GRID: Colocar en espacio de cuadrícula
+                snappedPosition = SnapToGrid(hit.point);
+                // Debug log removido para evitar spam
+            }
+            
             currentBrick.transform.position = Vector3.Lerp(currentBrick.transform.position, snappedPosition, previewSmoothing);
             isPositionValid = true;
             
@@ -371,27 +368,15 @@ public class PlaceBrickVR : MonoBehaviour
     
     private void UpdatePreviewSmoothing()
     {
-        if (currentBrick != null && hasTargetPosition)
-        {
-            // Suavizar el movimiento del preview
-            Vector3 currentPosition = currentBrick.transform.position;
-            Vector3 smoothedPosition = Vector3.Lerp(currentPosition, targetPreviewPosition, previewSmoothing);
-            currentBrick.transform.position = smoothedPosition;
-            
-            // Si está muy cerca de la posición objetivo, establecerla directamente
-            if (Vector3.Distance(currentPosition, targetPreviewPosition) < 0.01f)
-            {
-                currentBrick.transform.position = targetPreviewPosition;
-                hasTargetPosition = false;
-            }
-        }
+        // El preview ahora se actualiza directamente en UpdatePreviewWithXRRayInteractor
+        // No necesita suavizado adicional ya que el XRRayInteractor maneja esto internamente
     }
     
     private void HandleBrickPlacement()
     {
         // Usar sistema nativo de XR como RaycastSystem
         bool rightTriggerPressed = false;
-        bool leftTriggerPressed = false;
+        bool rightGripPressed = false;
         
         // Verificar controlador derecho
         List<UnityEngine.XR.InputDevice> rightHandDevices = new List<UnityEngine.XR.InputDevice>();
@@ -400,68 +385,69 @@ public class PlaceBrickVR : MonoBehaviour
         if (rightHandDevices.Count > 0)
         {
             var rightDevice = rightHandDevices[0];
+            
+            // Trigger derecho
             if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool rightTrigger))
             {
                 rightTriggerPressed = rightTrigger;
             }
-        }
-        
-        // Verificar controlador izquierdo
-        List<UnityEngine.XR.InputDevice> leftHandDevices = new List<UnityEngine.XR.InputDevice>();
-        UnityEngine.XR.InputDevices.GetDevicesAtXRNode(UnityEngine.XR.XRNode.LeftHand, leftHandDevices);
-        
-        if (leftHandDevices.Count > 0)
-        {
-            var leftDevice = leftHandDevices[0];
-            if (leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool leftTrigger))
+            
+            // Grip derecho
+            if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.gripButton, out bool rightGrip))
             {
-                leftTriggerPressed = leftTrigger;
+                rightGripPressed = rightGrip;
             }
         }
         
         // Debug cada 2 segundos
         if (Time.time % 2f < 0.1f)
         {
-            Debug.Log($"🎮 XR Input Debug:");
-            Debug.Log($"   - Right Trigger: {rightTriggerPressed}");
-            Debug.Log($"   - Left Trigger: {leftTriggerPressed}");
+            // Debug logs removidos para evitar spam
         }
         
-        // Trigger DERECHO = Colocar bloque
+        // Trigger DERECHO = Colocar preview (bloque transparente que no se mueve)
         if (rightTriggerPressed)
         {
-            Debug.Log("🎮 TRIGGER DERECHO presionado - Colocando bloque");
-            PlaceCurrentBrick();
+            PlacePreviewBrick();
         }
         
-        // Trigger IZQUIERDO = Confirmar (si está en modo preview colocado)
-        if (leftTriggerPressed)
+        // Grip DERECHO = Confirmar/Validar (si está en modo preview colocado)
+        if (rightGripPressed)
         {
-            Debug.Log("🎮 TRIGGER IZQUIERDO presionado - Confirmando bloque");
             if (!isPreviewMode)
             {
                 ConfirmBrickPlacement();
             }
+            else if (currentBrick != null)
+            {
+                CancelPreviewPlacement();
+            }
         }
+        
+        // Cancelar preview si se mueve el controlador (botón A)
+        HandlePreviewCancellation();
     }
     
     private void UpdateBrickPosition(RaycastHit hitInfo)
     {
-        Debug.Log($"🔧 UpdateBrickPosition: Hit en {hitInfo.point}, Collider: {hitInfo.collider.name}");
-        
         if (currentBrick == null) 
         {
             Debug.LogWarning("❌ CurrentBrick es null en UpdateBrickPosition");
             return;
         }
         
+        // Solo actualizar posición si estamos en modo preview libre
+        if (!isPreviewMode) 
+        {
+            Debug.Log("🎯 Preview colocado - no se mueve");
+            return;
+        }
+        
         // Activar el bloque preview
         currentBrick.gameObject.SetActive(true);
-        Debug.Log($"✅ Bloque activado: {currentBrick.gameObject.activeInHierarchy}");
         
         // Snap a la cuadrícula
         Vector3 snappedPosition = GridSystem.SnapToGrid(hitInfo.point);
-        Debug.Log($"📐 Posición snappeada: {snappedPosition}");
         
         // Buscar posición libre
         Vector3 finalPosition = FindValidPosition(snappedPosition);
@@ -470,31 +456,24 @@ public class PlaceBrickVR : MonoBehaviour
         if (finalPosition == Vector3.zero)
         {
             finalPosition = snappedPosition;
-            Debug.Log("⚠️ Usando posición snappeada como final");
         }
         
         // Actualizar posición del bloque
         currentBrick.transform.position = finalPosition;
-        Debug.Log($"📍 Bloque posicionado en: {finalPosition}");
         
-        // Verificar si la posición es válida
-        isPositionValid = true; // Siempre permitir colocación
-        
-        // Actualizar transparencia según validez
-        if (isPositionValid)
+        // Usar el sistema de validación para colores
+        if (validationSystem != null)
         {
-            currentBrick.SetTransparency(true, transparentMaterial);
-            Debug.Log("✅ Transparencia aplicada (verde)");
+            isPositionValid = validationSystem.ValidatePosition(finalPosition, currentBrick.GetBrickSize(), currentBrick.transform.rotation, currentBrick);
+            validationSystem.ApplyPreviewColor(currentBrick, isPositionValid);
         }
         else
         {
-            // Posición no válida - mostrar en rojo
-            Material invalidMaterial = CreateInvalidMaterial();
-            currentBrick.SetTransparency(true, invalidMaterial);
-            Debug.Log("❌ Transparencia aplicada (rojo)");
+            Debug.LogError("❌ BrickValidationSystem no está disponible");
+            isPositionValid = false;
         }
         
-        Debug.Log($"🎯 Bloque preview en posición: {finalPosition}, Válida: {isPositionValid}");
+        Debug.Log($"🎯 Preview siguiendo en {finalPosition} - Válida: {isPositionValid}");
     }
     
     private Vector3 FindValidPosition(Vector3 startPosition)
@@ -513,140 +492,66 @@ public class PlaceBrickVR : MonoBehaviour
         return freePosition;
     }
     
-    private void PlaceCurrentBrick()
-    {
-        Debug.Log($"🔧 PlaceCurrentBrick: CurrentBrick={currentBrick != null}, IsPositionValid={isPositionValid}");
-        
-        if (currentBrick == null) 
-        {
-            Debug.LogWarning("❌ No hay bloque para colocar");
-            return;
-        }
-        
-        if (!isPositionValid) 
-        {
-            Debug.LogWarning("❌ Posición no válida para colocar");
-            return;
-        }
-        
-        // Colocar el bloque definitivamente
-        currentBrick.PlaceBrick();
-        Debug.Log($"✅ Bloque colocado en: {currentBrick.transform.position}");
-        
-        // Crear nuevo bloque preview
-        CreatePreviewBrick();
-        
-        Debug.Log("🎉 Bloque colocado exitosamente");
-    }
     
-    private Material CreateInvalidMaterial()
-    {
-        Material invalidMat = new Material(transparentMaterial);
-        invalidMat.color = new Color(1f, 0f, 0f, 0.8f); // Rojo más opaco
-        return invalidMat;
-    }
+    // CreateInvalidMaterial movido a BrickValidationSystem.cs
     
-    private bool IsPositionOccupied(Vector3 position)
-    {
-        if (currentBrick == null) 
-        {
-            Debug.Log("🔍 IsPositionOccupied: currentBrick es null");
-            return false;
-        }
-        
-        Vector3 brickSize = currentBrick.GetBrickSize();
-        Quaternion brickRotation = currentBrick.transform.rotation;
-        
-        // Buscar todos los bloques colocados en la escena
-        BrickVR[] allBricks = FindObjectsByType<BrickVR>(FindObjectsSortMode.None);
-        
-        foreach (BrickVR brick in allBricks)
-        {
-            // Saltar el bloque actual (preview) y bloques no colocados
-            if (brick == currentBrick || !brick.IsPlaced) 
-            {
-                continue;
-            }
-            
-            // Verificar si hay colisión con este bloque
-            if (IsBrickColliding(position, brickSize, brickRotation, brick.transform.position, brick.GetBrickSize(), brick.transform.rotation))
-            {
-                Debug.Log($"🚫 Colisión detectada con bloque {brick.name} en posición {brick.transform.position}");
-                return true;
-            }
-        }
-        return false;
-    }
+    // Validaciones movidas a BrickValidationSystem.cs
     
-    private bool IsBrickColliding(Vector3 pos1, Vector3 size1, Quaternion rot1, Vector3 pos2, Vector3 size2, Quaternion rot2)
+    // Método de prueba de colisiones movido a BrickValidationSystem.cs
+    
+    
+    
+    /// <summary>
+    /// SNAP A BLOQUE: Coloca el bloque encima del collider de un bloque existente
+    /// </summary>
+    /// <param name="hit">Información del raycast hit en un bloque LEGO</param>
+    /// <returns>Posición centrada encima del bloque existente</returns>
+    private Vector3 SnapToBlock(RaycastHit hit)
     {
-        // Crear bounds para ambos bloques
-        Bounds bounds1 = new Bounds(pos1, size1);
-        Bounds bounds2 = new Bounds(pos2, size2);
+        // Obtener el collider del bloque existente
+        Collider blockCollider = hit.collider;
         
-        // Verificar si los bounds se intersectan
-        bool isColliding = bounds1.Intersects(bounds2);
+        // Calcular el centro del bloque en X y Z
+        Vector3 blockCenter = blockCollider.bounds.center;
+        float centerX = blockCenter.x;
+        float centerZ = blockCenter.z;
         
-        return isColliding;
+        // Obtener la parte superior del collider del bloque
+        float blockTop = blockCollider.bounds.max.y;
+        
+        // Calcular la altura del nuevo bloque
+        Vector3 newBrickSize = currentBrick.GetBrickSize();
+        float newBrickHeight = newBrickSize.y;
+        
+        // Pequeño espacio entre bloques (casi pegados)
+        float smallGap = 0.01f;
+        
+        // Posición final: centro del bloque existente + altura del nuevo bloque + espacio
+        Vector3 finalPosition = new Vector3(
+            centerX,
+            blockTop + (newBrickHeight * 0.5f) + smallGap,
+            centerZ
+        );
+        
+        return finalPosition;
     }
     
     /// <summary>
-    /// Método de prueba para verificar colisiones de forma más simple
+    /// SNAP A GRID: Coloca el bloque en un espacio de la cuadrícula
     /// </summary>
-    [ContextMenu("Probar Detección de Colisiones")]
-    public void TestCollisionDetection()
+    /// <param name="hitPoint">Punto donde se hizo el hit en la grid</param>
+    /// <returns>Posición snappeada a la cuadrícula</returns>
+    private Vector3 SnapToGrid(Vector3 hitPoint)
     {
-        if (currentBrick == null)
-        {
-            Debug.LogError("No hay bloque actual para probar");
-            return;
-        }
-        
-        Vector3 testPosition = currentBrick.transform.position;
-        Vector3 brickSize = currentBrick.GetBrickSize();
-        
-        Debug.Log($"🧪 Probando detección de colisiones en posición: {testPosition}");
-        
-        // Buscar todos los bloques colocados
-        BrickVR[] allBricks = FindObjectsByType<BrickVR>(FindObjectsSortMode.None);
-        Debug.Log($"🧪 Bloques encontrados: {allBricks.Length}");
-        
-        foreach (BrickVR brick in allBricks)
-        {
-            if (brick == currentBrick || !brick.IsPlaced) continue;
-            
-            float distance = Vector3.Distance(testPosition, brick.transform.position);
-            Debug.Log($"🧪 Distancia a {brick.name}: {distance}");
-            
-            if (distance < 1.0f) // Si está cerca
-            {
-                Debug.Log($"🧪 Bloque cercano detectado: {brick.name}");
-            }
-        }
-        
-        // Probar la función de colisión
-        bool isOccupied = IsPositionOccupied(testPosition);
-        Debug.Log($"🧪 Resultado de IsPositionOccupied: {isOccupied}");
+        // Usar el sistema de grid existente
+        return GridSystem.SnapToGrid(hitPoint);
     }
     
-    [ContextMenu("Forzar Material Rojo")]
-    public void ForceRedMaterial()
-    {
-        if (currentBrick == null)
-        {
-            Debug.LogError("No hay bloque actual para probar");
-            return;
-        }
-        
-        Material invalidMaterial = CreateInvalidMaterial();
-        currentBrick.SetTransparency(true, invalidMaterial);
-        Debug.Log("🔴 Material rojo forzado para testing");
-    }
     
-    [ContextMenu("Toggle Raycast Visualization")]
-    public void ToggleRaycastVisualization()
-    {
-    }
+    
+    
+    
+    
     
     /// <summary>
     /// Hacer snap a un bloque LEGO existente
@@ -682,24 +587,46 @@ public class PlaceBrickVR : MonoBehaviour
             return;
         }
         
-        if (!isPositionValid)
+        // Verificar validez de la posición actual usando el sistema de validación
+        Vector3 currentPosition = currentBrick.transform.position;
+        bool positionValid = false;
+        
+        if (validationSystem != null)
         {
-            Debug.LogWarning("⚠️ Posición no válida para colocar preview");
+            positionValid = validationSystem.ValidatePosition(currentPosition, currentBrick.GetBrickSize(), currentBrick.transform.rotation, currentBrick);
+        }
+        else
+        {
+            Debug.LogError("❌ BrickValidationSystem no está disponible");
             return;
         }
         
-        // Cambiar a modo de confirmación
+        if (!positionValid)
+        {
+            Debug.LogWarning("⚠️ Posición no válida para colocar preview");
+            validationSystem.ApplyPreviewColor(currentBrick, false);
+            return;
+        }
+        
+        // Cambiar a modo de confirmación (preview fijo - NO se mueve)
         isPreviewMode = false;
         
         // Cambiar nombre del bloque para indicar que es un preview colocado
         currentBrick.gameObject.name = "PreviewPlaced_" + currentBrick.gameObject.name;
         
-        // Cambiar material para indicar que está listo para confirmar
-        Material confirmMaterial = CreateConfirmMaterial();
-        currentBrick.SetTransparency(true, confirmMaterial);
+        // Aplicar color cian para indicar que está listo para confirmar
+        if (validationSystem != null)
+        {
+            validationSystem.ApplyConfirmColor(currentBrick);
+        }
+        else
+        {
+            Debug.LogError("❌ BrickValidationSystem no está disponible");
+        }
         
         Debug.Log($"✅ Preview colocado en posición: {currentBrick.transform.position}");
-        Debug.Log("🎯 Usa el Botón B para confirmar o Botón A para cancelar");
+        Debug.Log("🎯 Preview FIJO - No se mueve aunque muevas el controlador");
+        Debug.Log("🎯 Usa el TRIGGER IZQUIERDO para confirmar o Botón A para cancelar");
     }
     
     private void ConfirmBrickPlacement()
@@ -724,8 +651,18 @@ public class PlaceBrickVR : MonoBehaviour
         // Cambiar nombre del bloque para distinguirlo del preview
         currentBrick.gameObject.name = "PlacedBrick_" + currentBrick.gameObject.name;
         
-        // Colocar el bloque definitivamente
+        // Colocar el bloque definitivamente PRIMERO
         currentBrick.PlaceBrick();
+        
+        // Aplicar el color seleccionado al bloque final DESPUÉS de colocarlo
+        ApplyColorToBrick(currentBrick, currentBrickColor);
+        Debug.Log($"🎨 Color aplicado al bloque final DESPUÉS de colocar: {currentBrickColor}");
+        
+        // Registrar la colocación en el sistema de validación (inicia cooldown)
+        if (validationSystem != null)
+        {
+            validationSystem.OnBrickPlaced();
+        }
         
         Debug.Log($"👁️ Bloque activo después de colocar: {currentBrick.gameObject.activeInHierarchy}");
         Debug.Log($"🎨 Bloque es transparente: {currentBrick.IsTransparent}");
@@ -763,6 +700,133 @@ public class PlaceBrickVR : MonoBehaviour
         Debug.Log("✅ Bloque confirmado y colocado exitosamente");
     }
     
+    /// <summary>
+    /// Obtiene información sobre el cooldown de colocación
+    /// </summary>
+    public string GetCooldownInfo()
+    {
+        if (validationSystem != null)
+        {
+            float remainingTime = validationSystem.GetRemainingCooldownTime();
+            if (remainingTime > 0)
+            {
+                return $"⏰ Cooldown activo: {remainingTime:F1}s restantes";
+            }
+            else
+            {
+                return "✅ Listo para colocar";
+            }
+        }
+        return "❌ Sistema de validación no disponible";
+    }
+    
+    /// <summary>
+    /// Establece el color del bloque actual
+    /// </summary>
+    public void SetBrickColor(Color color)
+    {
+        currentBrickColor = color;
+        
+        Debug.Log($"🎨 SetBrickColor llamado con color: {color}");
+        Debug.Log($"🎨 SetBrickColor: Color RGB: R={color.r:F3}, G={color.g:F3}, B={color.b:F3}");
+        Debug.Log($"🎨 SetBrickColor: currentBrickColor actualizado a: {currentBrickColor}");
+        Debug.Log($"🎨 CurrentBrick existe: {currentBrick != null}");
+        
+        // Aplicar el color al preview actual si existe
+        if (currentBrick != null)
+        {
+            Debug.Log($"🎨 Aplicando color al bloque: {currentBrick.name}");
+            ApplyColorToBrick(currentBrick, color);
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ No hay bloque preview para aplicar el color");
+        }
+        
+        Debug.Log($"🎨 Color del bloque cambiado a: {color}");
+    }
+    
+    /// <summary>
+    /// Método de prueba para cambiar el color manualmente
+    /// </summary>
+    [ContextMenu("Test Red Color")]
+    public void TestRedColor()
+    {
+        SetBrickColor(Color.red);
+        Debug.Log("🔴 Color rojo aplicado manualmente");
+    }
+    
+    [ContextMenu("Test Blue Color")]
+    public void TestBlueColor()
+    {
+        SetBrickColor(Color.blue);
+        Debug.Log("🔵 Color azul aplicado manualmente");
+    }
+    
+    [ContextMenu("Test Green Color")]
+    public void TestGreenColor()
+    {
+        SetBrickColor(Color.green);
+        Debug.Log("🟢 Color verde aplicado manualmente");
+    }
+    
+    /// <summary>
+    /// Aplica un color a un bloque
+    /// </summary>
+    private void ApplyColorToBrick(BrickVR brick, Color color)
+    {
+        if (brick == null) 
+        {
+            Debug.LogWarning("⚠️ ApplyColorToBrick: Brick es null");
+            return;
+        }
+        
+        Debug.Log($"🎨 ApplyColorToBrick: Aplicando color {color} a {brick.name}");
+        
+        // Obtener todos los renderers del bloque
+        Renderer[] renderers = brick.GetComponentsInChildren<Renderer>();
+        Debug.Log($"🎨 ApplyColorToBrick: Encontrados {renderers.Length} renderers");
+        
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer != null && renderer.material != null)
+            {
+                Debug.Log($"🎨 ApplyColorToBrick: Aplicando color a renderer {renderer.name}");
+                Debug.Log($"🎨 ApplyColorToBrick: Material original: {renderer.material.name}");
+                Debug.Log($"🎨 ApplyColorToBrick: Shader original: {renderer.material.shader.name}");
+                
+                // Crear un material completamente nuevo con shader Unlit/Color (más simple)
+                Shader unlitShader = Shader.Find("Unlit/Color");
+                if (unlitShader == null)
+                {
+                    // Fallback a shader estándar
+                    unlitShader = Shader.Find("Standard");
+                }
+                
+                if (unlitShader == null)
+                {
+                    // Último fallback al shader original
+                    unlitShader = renderer.material.shader;
+                }
+                
+                Material newMaterial = new Material(unlitShader);
+                newMaterial.color = color;
+                
+                Debug.Log($"🎨 ApplyColorToBrick: Usando shader: {newMaterial.shader.name}");
+                Debug.Log($"🎨 ApplyColorToBrick: Color aplicado: {newMaterial.color}");
+                
+                // Aplicar el nuevo material
+                renderer.material = newMaterial;
+                
+                Debug.Log($"🎨 ApplyColorToBrick: Material aplicado exitosamente");
+            }
+            else
+            {
+                Debug.LogWarning($"⚠️ ApplyColorToBrick: Renderer o material es null en {renderer?.name}");
+            }
+        }
+    }
+    
     private void CancelPreviewPlacement()
     {
         Debug.Log("❌ Cancelando preview de bloque");
@@ -783,9 +847,9 @@ public class PlaceBrickVR : MonoBehaviour
         Debug.Log("✅ Preview cancelado, volviendo a modo preview");
     }
     
-    private void HandleBrickRotation()
+    private void HandlePreviewCancellation()
     {
-        // Rotación con botón A del controlador derecho
+        // Cancelar preview con botón A del controlador derecho
         List<UnityEngine.XR.InputDevice> rightHandDevices = new List<UnityEngine.XR.InputDevice>();
         UnityEngine.XR.InputDevices.GetDevicesAtXRNode(UnityEngine.XR.XRNode.RightHand, rightHandDevices);
         
@@ -794,13 +858,28 @@ public class PlaceBrickVR : MonoBehaviour
             var rightDevice = rightHandDevices[0];
             if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool buttonA))
             {
-                if (buttonA && currentBrick != null && isPreviewMode)
+                if (buttonA)
                 {
-                    currentBrick.RotateBrick();
-                    Debug.Log("🔄 Bloque rotado (Botón A)");
+                    if (!isPreviewMode)
+                    {
+                        // Cancelar preview colocado
+                        CancelPreviewPlacement();
+                    }
+                    else if (currentBrick != null)
+                    {
+                        // Rotar bloque en modo preview libre
+                currentBrick.RotateBrick();
+                        // Debug log removido para evitar spam
+                    }
                 }
             }
         }
+    }
+    
+    private void HandleBrickRotation()
+    {
+        // La rotación ahora se maneja en HandlePreviewCancellation()
+        // Este método se mantiene por compatibilidad pero no se usa
     }
     
     private void HandleBrickDeletion()
@@ -815,8 +894,8 @@ public class PlaceBrickVR : MonoBehaviour
             if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out bool buttonX))
             {
                 if (buttonX && isPreviewMode)
-                {
-                    DeleteBrickAtController();
+        {
+            DeleteBrickAtController();
                     Debug.Log("🗑️ Eliminando bloque (Botón X)");
                 }
             }
@@ -829,9 +908,9 @@ public class PlaceBrickVR : MonoBehaviour
         
         // Usar el hit del ray interactor
         BrickVR brickToDelete = hit.collider.GetComponent<BrickVR>();
-        if (brickToDelete != null)
-        {
-            Destroy(brickToDelete.gameObject);
+            if (brickToDelete != null)
+            {
+                Destroy(brickToDelete.gameObject);
             Debug.Log("🗑️ Bloque eliminado");
         }
     }
@@ -848,8 +927,8 @@ public class PlaceBrickVR : MonoBehaviour
             if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.gripButton, out bool gripButton))
             {
                 if (gripButton && isPreviewMode)
-                {
-                    SelectNextBrick();
+        {
+            SelectNextBrick();
                     Debug.Log("🔄 Cambiando tipo de bloque (Grip)");
                 }
             }
@@ -911,6 +990,9 @@ public class PlaceBrickVR : MonoBehaviour
             currentBrick.SetMaterial(brickMaterials[currentMaterialIndex]);
         }
         
+        // Aplicar el color seleccionado
+        ApplyColorToBrick(currentBrick, currentBrickColor);
+        
         // Posicionar en el centro de la escena inicialmente
         brickObject.transform.position = Vector3.zero;
         
@@ -918,19 +1000,7 @@ public class PlaceBrickVR : MonoBehaviour
     }
     
     
-    private Material CreateWarningMaterial()
-    {
-        Material warningMat = new Material(transparentMaterial);
-        warningMat.color = new Color(1f, 1f, 0f, 0.5f); // Amarillo transparente
-        return warningMat;
-    }
-    
-    private Material CreateConfirmMaterial()
-    {
-        Material confirmMat = new Material(transparentMaterial);
-        confirmMat.color = new Color(0f, 1f, 1f, 0.7f); // Cian transparente para confirmar
-        return confirmMat;
-    }
+    // Métodos de materiales movidos a BrickValidationSystem.cs
     
     /// <summary>
     /// Cambia el modo de construcción
@@ -990,569 +1060,22 @@ public class PlaceBrickVR : MonoBehaviour
         Debug.Log("✅ Desuscrito de eventos de raycast");
     }
     
-    /// <summary>
-    /// Probar eventos de raycast
-    /// </summary>
-    [ContextMenu("Probar Eventos Raycast")]
-    public void TestRaycastEvents()
-    {
-        Debug.Log("🧪 Probando eventos de raycast...");
-        
-        // Suscribirse temporalmente a los eventos
-        SubscribeToRaycastEvents(
-            (hit) => Debug.Log($"🎯 EVENTO HIT: {hit.point}, Objeto: {hit.collider.name}"),
-            () => Debug.Log("🎯 EVENTO MISS: No hay hit detectado")
-        );
-        
-        Debug.Log("✅ Eventos configurados. Mueve el controlador para probar.");
-    }
-    
-    /// <summary>
-    /// Debug de todos los XRRayInteractor en la escena
-    /// </summary>
-    [ContextMenu("Debug All XRRayInteractors")]
-    public void DebugAllXRRayInteractors()
-    {
-        Debug.Log("=== DEBUG TODOS LOS XR RAY INTERACTORS ===");
-        
-        XRRayInteractor[] allRayInteractors = FindObjectsByType<XRRayInteractor>(FindObjectsSortMode.None);
-        Debug.Log($"📡 Total de XRRayInteractor encontrados: {allRayInteractors.Length}");
-        
-        for (int i = 0; i < allRayInteractors.Length; i++)
-        {
-            var interactor = allRayInteractors[i];
-            Debug.Log($"\n--- XRRayInteractor {i + 1} ---");
-            Debug.Log($"   Nombre: {interactor.name}");
-            Debug.Log($"   Activo: {interactor.gameObject.activeInHierarchy}");
-            Debug.Log($"   Habilitado: {interactor.enabled}");
-            Debug.Log($"   Padre: {interactor.transform.parent?.name ?? "NULL"}");
-            
-            // Buscar controlador padre
-            XRBaseController controller = interactor.GetComponentInParent<XRBaseController>();
-            if (controller != null)
-            {
-                Debug.Log($"   Controlador: {controller.name}");
-                Debug.Log($"   Controlador Activo: {controller.gameObject.activeInHierarchy}");
-            }
-            else
-            {
-                Debug.Log("   Controlador: NO ENCONTRADO");
-            }
-            
-            // Mostrar jerarquía completa
-            Transform current = interactor.transform;
-            string hierarchy = interactor.name;
-            while (current.parent != null)
-            {
-                current = current.parent;
-                hierarchy = current.name + " -> " + hierarchy;
-            }
-            Debug.Log($"   Jerarquía: {hierarchy}");
-        }
-    }
-    
-    /// <summary>
-    /// Forzar habilitación de Input Actions
-    /// </summary>
-    [ContextMenu("Forzar Habilitar Input Actions")]
-    public void ForceEnableInputActions()
-    {
-        Debug.Log("🔧 Forzando habilitación de Input Actions...");
-        
-        if (inputActions == null)
-        {
-            Debug.LogError("❌ InputActions es NULL - no se puede habilitar");
-            return;
-        }
-        
-        try
-        {
-            // Forzar grupo de control XR
-            inputActions.asset.bindingMask = new UnityEngine.InputSystem.InputBinding { groups = "XR" };
-            Debug.Log("✅ Grupo de control cambiado a XR");
-            
-            inputActions.Player.Attack.Enable();
-            inputActions.Player.Jump.Enable();
-            inputActions.Player.Crouch.Enable();
-            inputActions.Player.Next.Enable();
-            Debug.Log("✅ Input Actions habilitados forzadamente");
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"❌ Error al habilitar Input Actions: {e.Message}");
-        }
-    }
     
     
-    /// <summary>
-    /// Verificar Input Action Manager en detalle
-    /// </summary>
-    [ContextMenu("Verificar Input Action Manager")]
-    public void CheckInputActionManager()
-    {
-        Debug.Log("=== VERIFICACIÓN INPUT ACTION MANAGER ===");
-        
-        // Buscar Input Action Manager
-        var inputActionManager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
-        
-        if (inputActionManager == null)
-        {
-            Debug.LogError("❌ No se encontró InputActionManager en la escena");
-            return;
-        }
-        
-        Debug.Log($"✅ InputActionManager encontrado: {inputActionManager.name}");
-        Debug.Log($"   - Enabled: {inputActionManager.enabled}");
-        Debug.Log($"   - GameObject Active: {inputActionManager.gameObject.activeInHierarchy}");
-        
-        // Verificar actionAssets usando reflexión
-        var actionAssetsField = typeof(UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager)
-            .GetField("m_ActionAssets", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        
-        if (actionAssetsField != null)
-        {
-            var actionAssets = actionAssetsField.GetValue(inputActionManager) as System.Collections.Generic.List<UnityEngine.InputSystem.InputActionAsset>;
-            
-            if (actionAssets != null)
-            {
-                Debug.Log($"   - ActionAssets Count: {actionAssets.Count}");
-                for (int i = 0; i < actionAssets.Count; i++)
-                {
-                    if (actionAssets[i] != null)
-                    {
-                        Debug.Log($"     [{i}] {actionAssets[i].name}");
-                        
-                        // Verificar si es nuestro InputActions
-                        if (inputActions != null && actionAssets[i] == inputActions.asset)
-                        {
-                            Debug.Log($"       ✅ Es nuestro InputSystem_Actions");
-                        }
-                    }
-                }
-            }
-            else
-            {
-                Debug.LogWarning("   - ActionAssets es NULL");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("   - No se pudo acceder al campo ActionAssets");
-        }
-        
-        // Verificar si está en un GameObject con nombre XR
-        var parent = inputActionManager.transform.parent;
-        bool isInXRHierarchy = false;
-        string xrHierarchy = "";
-        
-        while (parent != null)
-        {
-            if (parent.name.ToLower().Contains("xr") || parent.name.ToLower().Contains("origin"))
-            {
-                isInXRHierarchy = true;
-                xrHierarchy = parent.name;
-                break;
-            }
-            parent = parent.parent;
-        }
-        
-        if (isInXRHierarchy)
-        {
-            Debug.Log($"   - En jerarquía XR: {xrHierarchy}");
-        }
-        else
-        {
-            Debug.LogWarning("   - No está en una jerarquía XR");
-        }
-    }
     
-    /// <summary>
-    /// Debug del sistema de Input Actions
-    /// </summary>
-    [ContextMenu("Debug Input Actions")]
-    public void DebugInputActions()
-    {
-        Debug.Log("=== DEBUG INPUT ACTIONS ===");
-        
-        if (inputActions == null)
-        {
-            Debug.LogError("❌ InputActions es NULL");
-            return;
-        }
-        
-        Debug.Log("✅ InputActions disponible");
-        Debug.Log($"   - Player Actions: OK");
-        Debug.Log($"   - UI Actions: OK");
-        
-        // PlayerActions y UIActions son structs, siempre están disponibles
-        Debug.Log("   - Attack (Trigger) Enabled: " + inputActions.Player.Attack.enabled);
-        Debug.Log("   - Jump (Botón A) Enabled: " + inputActions.Player.Jump.enabled);
-        Debug.Log("   - Crouch (Botón X) Enabled: " + inputActions.Player.Crouch.enabled);
-        Debug.Log("   - Next (Joystick) Enabled: " + inputActions.Player.Next.enabled);
-        
-        // Verificar si hay Input Action Manager
-        var inputActionManager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
-        if (inputActionManager != null)
-        {
-            Debug.Log($"✅ InputActionManager encontrado: {inputActionManager.name}");
-            Debug.Log($"   - Enabled: {inputActionManager.enabled}");
-        }
-        else
-        {
-            Debug.LogWarning("⚠️ No se encontró InputActionManager");
-        }
-    }
     
-    /// <summary>
-    /// Debug de objetos en Layer 7 y 8
-    /// </summary>
-    [ContextMenu("Debug Layers 7 y 8")]
-    public void DebugLayers7y8()
-    {
-        Debug.Log("=== DEBUG LAYERS 7 Y 8 ===");
-        
-        // Buscar objetos en Layer 7 (Lego)
-        GameObject[] legoObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None)
-            .Where(obj => obj.layer == 7).ToArray();
-        
-        Debug.Log($"📦 Objetos en Layer 7 (Lego): {legoObjects.Length}");
-        foreach (var obj in legoObjects)
-        {
-            Debug.Log($"   - {obj.name} (Activo: {obj.activeInHierarchy})");
-        }
-        
-        // Buscar objetos en Layer 8 (Grid)
-        GameObject[] gridObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None)
-            .Where(obj => obj.layer == 8).ToArray();
-        
-        Debug.Log($"📐 Objetos en Layer 8 (Grid): {gridObjects.Length}");
-        foreach (var obj in gridObjects)
-        {
-            Debug.Log($"   - {obj.name} (Activo: {obj.activeInHierarchy})");
-        }
-        
-        // Verificar colliders
-        Collider[] allColliders = FindObjectsByType<Collider>(FindObjectsSortMode.None);
-        int legoColliders = allColliders.Count(c => c.gameObject.layer == 7);
-        int gridColliders = allColliders.Count(c => c.gameObject.layer == 8);
-        
-        Debug.Log($"🔲 Colliders en Layer 7: {legoColliders}");
-        Debug.Log($"🔲 Colliders en Layer 8: {gridColliders}");
-    }
     
-    /// <summary>
-    /// Debug del estado completo del sistema de raycast
-    /// </summary>
-    [ContextMenu("Debug Sistema Completo")]
-    public void DebugSistemaCompleto()
-    {
-        Debug.Log("=== DEBUG SISTEMA COMPLETO ===");
-        
-        // Debug XRRayInteractor
-        if (rayInteractor != null)
-        {
-            Debug.Log("✅ XRRayInteractor: DISPONIBLE");
-            Debug.Log($"   - Nombre: {rayInteractor.name}");
-            Debug.Log($"   - Habilitado: {rayInteractor.enabled}");
-            Debug.Log($"   - Max Distance: {rayInteractor.maxRaycastDistance}m");
-            Debug.Log($"   - Raycast Mask: {rayInteractor.raycastMask.value}");
-        }
-        else
-        {
-            Debug.Log("❌ XRRayInteractor: NO DISPONIBLE");
-        }
-        
-        // Debug sistema manual
-        if (useManualRaycast)
-        {
-            Debug.Log("✅ Sistema Manual: ACTIVO");
-            if (manualRayOrigin != null)
-            {
-                Debug.Log($"   - Origen: {manualRayOrigin.name}");
-                Debug.Log($"   - Posición: {manualRayOrigin.position}");
-                Debug.Log($"   - Forward: {manualRayOrigin.forward}");
-            }
-            else
-            {
-                Debug.Log("❌ Origen manual: NULL");
-            }
-        }
-        else
-        {
-            Debug.Log("❌ Sistema Manual: INACTIVO");
-        }
-        
-        // Debug preview
-        if (currentBrick != null)
-        {
-            Debug.Log("✅ Preview Brick: DISPONIBLE");
-            Debug.Log($"   - Activo: {currentBrick.gameObject.activeInHierarchy}");
-            Debug.Log($"   - Posición: {currentBrick.transform.position}");
-            Debug.Log($"   - Válido: {isPositionValid}");
-        }
-        else
-        {
-            Debug.Log("❌ Preview Brick: NO DISPONIBLE");
-        }
-    }
     
-    /// <summary>
-    /// Debug de la configuración del XRRayInteractor
-    /// </summary>
-    [ContextMenu("Debug XRRayInteractor")]
-    public void DebugXRRayInteractor()
-    {
-        Debug.Log("=== DEBUG XR RAY INTERACTOR ===");
-        
-        if (rayInteractor == null)
-        {
-            Debug.LogError("❌ XRRayInteractor es NULL");
-            return;
-        }
-        
-        Debug.Log($"✅ XRRayInteractor encontrado: {rayInteractor.name}");
-        Debug.Log($"   - Enabled: {rayInteractor.enabled}");
-        Debug.Log($"   - Max Distance: {rayInteractor.maxRaycastDistance}m");
-        Debug.Log($"   - Raycast Mask: {rayInteractor.raycastMask.value} (0x{rayInteractor.raycastMask.value:X8})");
-        Debug.Log($"   - Ray Origin: {(rayInteractor.rayOriginTransform != null ? rayInteractor.rayOriginTransform.name : "NULL")}");
-        
-        if (rayInteractor.rayOriginTransform != null)
-        {
-            Debug.Log($"   - Ray Origin Position: {rayInteractor.rayOriginTransform.position}");
-            Debug.Log($"   - Ray Origin Forward: {rayInteractor.rayOriginTransform.forward}");
-        }
-        
-        // Probar si detecta hits
-        if (rayInteractor.TryGetCurrent3DRaycastHit(out RaycastHit hit))
-        {
-            Debug.Log($"✅ XRRayInteractor HIT detectado:");
-            Debug.Log($"   - Point: {hit.point}");
-            Debug.Log($"   - Distance: {hit.distance:F2}m");
-            Debug.Log($"   - Object: {hit.collider.name}");
-            Debug.Log($"   - Layer: {hit.collider.gameObject.layer}");
-        }
-        else
-        {
-            Debug.Log("❌ XRRayInteractor NO detecta hits");
-        }
-    }
     
-    /// <summary>
-    /// Debug del estado del bloque preview
-    /// </summary>
-    [ContextMenu("Debug Preview Brick")]
-    public void DebugPreviewBrick()
-    {
-        Debug.Log("=== DEBUG PREVIEW BRICK ===");
-        Debug.Log($"CurrentBrick: {(currentBrick != null ? "OK" : "NULL")}");
-        Debug.Log($"IsBuilding: {IsBuilding}");
-        Debug.Log($"IsPositionValid: {isPositionValid}");
-        Debug.Log($"BrickPrefabs Length: {brickPrefabs.Length}");
-        Debug.Log($"CurrentBrickIndex: {currentBrickIndex}");
-        
-        if (currentBrick != null)
-        {
-            Debug.Log($"Brick GameObject Active: {currentBrick.gameObject.activeInHierarchy}");
-            Debug.Log($"Brick Position: {currentBrick.transform.position}");
-            Debug.Log($"Brick IsTransparent: {currentBrick.IsTransparent}");
-            Debug.Log($"Brick IsPlaced: {currentBrick.IsPlaced}");
-            
-            Renderer[] renderers = currentBrick.GetComponentsInChildren<Renderer>();
-            Debug.Log($"Brick Renderers: {renderers.Length}");
-            foreach (Renderer renderer in renderers)
-            {
-                if (renderer != null)
-                {
-                    Debug.Log($"  - Renderer: {renderer.name}, Enabled: {renderer.enabled}, Material: {(renderer.material != null ? "OK" : "NULL")}");
-                }
-            }
-        }
-    }
+    
+    
 
-    /// <summary>
-    /// Debug de la línea de raycast
-    /// </summary>
-    [ContextMenu("Debug Raycast Line")]
-    public void DebugRaycastLine()
-    {
-        if (rayInteractor != null)
-        {
-            Debug.Log("=== XR RAY INTERACTOR DEBUG ===");
-            Debug.Log($"Ray Interactor: {rayInteractor.name}");
-            Debug.Log($"Max Distance: {rayInteractor.maxRaycastDistance}m");
-            Debug.Log($"Raycast Mask: {rayInteractor.raycastMask}");
-            Debug.Log($"Enabled: {rayInteractor.enabled}");
-            
-            if (rayInteractor.TryGetCurrent3DRaycastHit(out RaycastHit hit))
-            {
-                Debug.Log($"Hit Point: {hit.point}");
-                Debug.Log($"Hit Distance: {hit.distance:F2}m");
-                Debug.Log($"Hit Object: {hit.collider.name}");
-            }
-            else
-            {
-                Debug.Log("No hit detected");
-            }
-        }
-        else
-        {
-            Debug.Log("❌ XRRayInteractor no está asignado");
-        }
-    }
 
     // Método DebugSistemaCompleto duplicado eliminado - usando el método actualizado
-
-    /// <summary>
-    /// Forzar actualización del raycast para verificar posición
-    /// </summary>
-    [ContextMenu("Forzar Actualización Raycast")]
-    public void ForceRaycastUpdate()
-    {
-        if (rayInteractor != null)
-        {
-            // El XRRayInteractor se actualiza automáticamente
-            Debug.Log("✅ XRRayInteractor está activo y se actualiza automáticamente");
-            
-            if (rayInteractor.TryGetCurrent3DRaycastHit(out RaycastHit hit))
-            {
-                Debug.Log($"Raycast hit detectado: {hit.point}");
-                UpdateBrickPosition(hit);
-            }
-            else
-            {
-                Debug.Log("No hay hit de raycast");
-            }
-        }
-        else
-        {
-            Debug.Log("❌ XRRayInteractor no está asignado");
-        }
-    }
     
-    /// <summary>
-    /// Forzar la visibilidad del bloque preview
-    /// </summary>
-    [ContextMenu("Forzar Visibilidad Preview")]
-    public void ForcePreviewVisibility()
-    {
-        if (currentBrick != null)
-        {
-            currentBrick.gameObject.SetActive(true);
-            currentBrick.transform.position = Vector3.zero; // Posición central
-            isPositionValid = true;
-            Debug.Log("Bloque preview forzado a ser visible en posición central");
-        }
-        else
-        {
-            CreatePreviewBrick();
-            Debug.Log("Bloque preview creado y forzado a ser visible");
-        }
-    }
     
-    /// <summary>
-    /// Probar colocación manualmente
-    /// </summary>
-    [ContextMenu("Probar Colocación")]
-    public void TestPlacement()
-    {
-        Debug.Log("🧪 PROBANDO COLOCACIÓN MANUAL");
-        if (isPreviewMode)
-        {
-            PlacePreviewBrick();
-        }
-        else
-        {
-            ConfirmBrickPlacement();
-        }
-    }
     
-    /// <summary>
-    /// Verificar estado del Input System
-    /// </summary>
-    [ContextMenu("Verificar Input System")]
-    public void CheckInputSystem()
-    {
-        Debug.Log("=== VERIFICACIÓN INPUT SYSTEM ===");
-        Debug.Log($"InputActions: {(inputActions != null ? "OK" : "NULL")}");
-        
-        if (inputActions != null)
-        {
-            Debug.Log($"Attack Enabled: {inputActions.Player.Attack.enabled}");
-            Debug.Log($"Jump Enabled: {inputActions.Player.Jump.enabled}");
-            Debug.Log($"Crouch Enabled: {inputActions.Player.Crouch.enabled}");
-            Debug.Log($"Next Enabled: {inputActions.Player.Next.enabled}");
-            
-            // Verificar estado actual de los inputs
-            Debug.Log($"Attack Pressed: {inputActions.Player.Attack.WasPressedThisFrame()}");
-            Debug.Log($"Attack Held: {inputActions.Player.Attack.IsPressed()}");
-            Debug.Log($"Jump Pressed: {inputActions.Player.Jump.WasPressedThisFrame()}");
-        }
-    }
     
-    /// <summary>
-    /// Probar detección de input en tiempo real
-    /// </summary>
-    [ContextMenu("Probar Input en Tiempo Real")]
-    public void TestInputDetection()
-    {
-        StartCoroutine(TestInputCoroutine());
-    }
-    
-    /// <summary>
-    /// Verificar configuración VR
-    /// </summary>
-    [ContextMenu("Verificar Configuración VR")]
-    public void CheckVRConfiguration()
-    {
-        Debug.Log("=== VERIFICACIÓN CONFIGURACIÓN VR ===");
-        
-        // Verificar si XR está habilitado
-        bool xrEnabled = UnityEngine.XR.XRSettings.enabled;
-        Debug.Log($"XR Habilitado: {xrEnabled}");
-        
-        if (xrEnabled)
-        {
-            Debug.Log($"Proveedor XR: {UnityEngine.XR.XRSettings.loadedDeviceName}");
-            Debug.Log($"Modo Stereo: {UnityEngine.XR.XRSettings.stereoRenderingMode}");
-        }
-        else
-        {
-            Debug.LogWarning("⚠️ XR no está habilitado. Para usar VR:");
-            Debug.Log("1. Ve a Edit > Project Settings > XR Plug-in Management");
-            Debug.Log("2. Marca 'Initialize XR on Startup'");
-            Debug.Log("3. Configura Oculus/OpenXR");
-        }
-        
-        // Verificar dispositivos VR
-        List<UnityEngine.XR.InputDevice> allDevices = new List<UnityEngine.XR.InputDevice>();
-        UnityEngine.XR.InputDevices.GetDevices(allDevices);
-        
-        Debug.Log($"Dispositivos VR detectados: {allDevices.Count}");
-        foreach (var device in allDevices)
-        {
-            Debug.Log($"  - {device.name} ({device.characteristics})");
-        }
-        
-        // Verificar controladores específicos
-        List<UnityEngine.XR.InputDevice> leftHand = new List<UnityEngine.XR.InputDevice>();
-        List<UnityEngine.XR.InputDevice> rightHand = new List<UnityEngine.XR.InputDevice>();
-        
-        UnityEngine.XR.InputDevices.GetDevicesAtXRNode(XRNode.LeftHand, leftHand);
-        UnityEngine.XR.InputDevices.GetDevicesAtXRNode(XRNode.RightHand, rightHand);
-        
-        Debug.Log($"Controlador izquierdo: {leftHand.Count}");
-        Debug.Log($"Controlador derecho: {rightHand.Count}");
-        
-        if (leftHand.Count > 0)
-        {
-            Debug.Log($"  - Izquierdo: {leftHand[0].name}");
-        }
-        if (rightHand.Count > 0)
-        {
-            Debug.Log($"  - Derecho: {rightHand[0].name}");
-        }
-        
-    }
     
     /// <summary>
     /// Verificar mapeo del Input System
@@ -1821,7 +1344,7 @@ public class PlaceBrickVR : MonoBehaviour
     
     private void OnDestroy()
     {
-        Debug.Log("PlaceBrickVR: OnDestroy - Limpiando recursos");
+        // Debug log removido para evitar spam
         
         if (currentBrick != null)
         {
@@ -1905,10 +1428,10 @@ public class PlaceBrickVR : MonoBehaviour
             try
             {
                 // Deshabilitar todas las acciones individualmente
-                inputActions.Player.Attack.Disable();
-                inputActions.Player.Jump.Disable();
-                inputActions.Player.Crouch.Disable();
-                inputActions.Player.Next.Disable();
+            inputActions.Player.Attack.Disable();
+            inputActions.Player.Jump.Disable();
+            inputActions.Player.Crouch.Disable();
+            inputActions.Player.Next.Disable();
                 inputActions.Player.Interact.Disable();
                 inputActions.Player.Previous.Disable();
                 inputActions.Player.Sprint.Disable();

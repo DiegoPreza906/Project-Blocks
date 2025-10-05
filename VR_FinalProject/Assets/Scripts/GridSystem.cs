@@ -84,12 +84,18 @@ public static class GridSystem
             );
         }
         
-        // Solo snap a la grid, sin considerar altura de bloques existentes
-        return new Vector3(
-            Mathf.Round(worldPosition.x / _gridSize.x) * _gridSize.x + _gridSize.x * 0.5f,
-            _gridSize.y * 0.5f, // Altura base de la grid
-            Mathf.Round(worldPosition.z / _gridSize.z) * _gridSize.z + _gridSize.z * 0.5f
-        );
+        // Snap a la grid en X y Z, luego calcular altura correcta
+        float snappedX = Mathf.Round(worldPosition.x / _gridSize.x) * _gridSize.x + _gridSize.x * 0.5f;
+        float snappedZ = Mathf.Round(worldPosition.z / _gridSize.z) * _gridSize.z + _gridSize.z * 0.5f;
+        
+        // Calcular altura correcta (suelo o encima de bloques existentes)
+        float correctHeight = FindCorrectHeight(snappedX, snappedZ, new Vector3(1f, 1f, 1f)); // Tamaño por defecto
+        
+        Vector3 snappedPosition = new Vector3(snappedX, correctHeight, snappedZ);
+        
+        // Debug logs removidos para evitar spam
+        
+        return snappedPosition;
     }
     
     /// <summary>
@@ -159,39 +165,44 @@ public static class GridSystem
         
         // Buscar el bloque más alto en esta posición X,Z
         float highestY = 0f;
+        int blockCount = 0;
         
         // Crear un raycast hacia abajo desde una altura alta para encontrar bloques
         Vector3 rayStart = new Vector3(x, 100f, z);
         RaycastHit[] hits = Physics.RaycastAll(rayStart, Vector3.down, 200f, _layerMaskLego);
+        
+        // Debug log removido para evitar spam
         
         foreach (RaycastHit hit in hits)
         {
             // Verificar si el hit es de un bloque LEGO
             if (hit.collider.gameObject.layer == LayerMask.NameToLayer("Lego"))
             {
-                // Obtener el collider del bloque
-                BoxCollider blockCollider = hit.collider.GetComponent<BoxCollider>();
-                if (blockCollider != null)
+                blockCount++;
+                // Calcular la parte superior del bloque
+                float blockTop = hit.collider.bounds.max.y;
+                if (blockTop > highestY)
                 {
-                    // Calcular la parte superior del bloque
-                    float blockTop = hit.collider.bounds.max.y;
-                    if (blockTop > highestY)
-                    {
-                        highestY = blockTop;
-                    }
+                    highestY = blockTop;
+                    // Debug log removido para evitar spam
                 }
             }
         }
         
         // Si no hay bloques debajo, colocar en el suelo
-        if (highestY == 0f)
+        if (blockCount == 0)
         {
+            // Debug log removido para evitar spam
             return _gridSize.y * 0.5f; // Centro del primer cuadro
         }
         
         // Colocar directamente encima del bloque más alto con un pequeño espacio
         float smallGap = 0.01f; // Pequeño espacio entre bloques
-        return highestY + (brickSize.y * 0.5f) + smallGap;
+        float finalHeight = highestY + (brickSize.y * 0.5f) + smallGap;
+        
+        // Debug logs removidos para evitar spam
+        
+        return finalHeight;
     }
     
     /// <summary>
