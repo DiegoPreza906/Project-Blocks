@@ -1,10 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Script simple para los botones de color en el menú VR
-/// Solo necesita que le asignes el color que quieres que tenga
-/// </summary>
 public class ColorButton : MonoBehaviour
 {
     [Header("Color del Botón")]
@@ -21,9 +17,6 @@ public class ColorButton : MonoBehaviour
         SetColor(buttonColor);
     }
     
-    /// <summary>
-    /// Establece el color del botón
-    /// </summary>
     public void SetColor(Color color)
     {
         buttonColor = color;
@@ -34,9 +27,6 @@ public class ColorButton : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// Obtiene el color del botón
-    /// </summary>
     public Color GetColor()
     {
         return buttonColor;
