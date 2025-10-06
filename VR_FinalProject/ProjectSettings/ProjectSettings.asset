@@ -98,7 +98,7 @@ PlayerSettings:
   useMacAppStoreValidation: 0
   macAppStoreCategory: public.app-category.games
   gpuSkinning: 1
-  meshDeformation: 2
+  meshDeformation: 1
   xboxPIXTextureCapture: 0
   xboxEnableAvatar: 0
   xboxEnableKinect: 0
@@ -142,7 +142,10 @@ PlayerSettings:
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
   bundleVersion: 0.1.0
-  preloadedAssets: []
+  preloadedAssets:
+  - {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - {fileID: 1986411570409363750, guid: 664a86f270e126b4294bad4a0e53f1a0, type: 2}
+  - {fileID: 5388699175334776680, guid: c53d5631a12ca3647a7d74eb6f2ecb32, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -520,7 +523,10 @@ PlayerSettings:
       m_Height: 720
       m_Kind: 1
       m_SubKind: 
-  m_BuildTargetBatching: []
+  m_BuildTargetBatching:
+  - m_BuildTarget: Android
+    m_StaticBatching: 1
+    m_DynamicBatching: 0
   m_BuildTargetShaderSettings: []
   m_BuildTargetGraphicsJobs:
   - m_BuildTarget: AndroidPlayer
